@@ -129,95 +129,119 @@ graph TB
 
 ### ✅ 2. Diagramme de Déploiement
 
-**Infrastructure Cloud en 3 zones** :
-
-**Zone 1 : Ingestion & Streaming**
-- Serveur Ingestion : 8 GB RAM, 4 cores
-- Kafka Broker 01 : 16 GB RAM, 8 cores
-    - Topic Profils (2 partitions)
-    - Topic Factures (2 partitions)
-- Kafka Broker 02 : Réplication
-
-**Zone 2 : Traitement Distribué**
-- Spark Master : 32 GB RAM, 16 cores
-- Spark Worker 01 : 16 GB RAM (ID 1-500)
-- Spark Worker 02 : 16 GB RAM (ID 501-1000)
-
-**Zone Stockage**
-- PostgreSQL : 64 GB RAM, 2 TB SSD
-- Object Storage : S3/Blob 10 TB
-
-**Protocoles** :
-- SFTP (Port 22) : Upload fichiers
-- Kafka (Port 9092) : Streaming
-- JDBC (Port 5432) : BDD
-- HTTPS : Power BI
-
 ```mermaid
 graph TB
-    subgraph Cloud["☁️ INFRASTRUCTURE CLOUD"]
-        subgraph Zone1["🌍 Zone Ingestion & Streaming"]
-            subgraph Ingestion["📥 Serveur Ingestion"]
-                N1["🖥️ Serveur Ingestion-01<br/>──────────────<br/>OS: Ubuntu 22.04<br/>RAM: 8 GB | CPU: 4 cores<br/>──────────────<br/>Services:<br/>• File Loader JSON/CSV<br/>• Kafka Producer<br/>──────────────<br/>IP: 10.0.1.10"]
-            end
-            
-            subgraph Kafka["🚀 Cluster Kafka - 2 Topics"]
-                N2["🖥️ Kafka-Broker-01<br/>──────────────<br/>OS: Ubuntu 22.04<br/>RAM: 16 GB | CPU: 8 cores<br/>──────────────<br/>Topics hébergés:<br/>📨 Topic: Profils<br/>  └─ Partitions: 2<br/>📨 Topic: Factures<br/>  └─ Partitions: 2<br/>──────────────<br/>IP: 10.0.1.20 | Port: 9092"]
-                
-                N3["🖥️ Kafka-Broker-02<br/>──────────────<br/>Réplication<br/>RAM: 16 GB<br/>──────────────<br/>Réplique topics:<br/>• Profils (replica)<br/>• Factures (replica)<br/>──────────────<br/>IP: 10.0.1.21 | Port: 9092"]
-            end
+    subgraph Cloud["☁️ INFRASTRUCTURE CLOUD (AWS / Azure)"]
+        subgraph VM1["🖥️ VM-01 : Ingestion & Streaming<br/>──────────<br/>Ubuntu 22.04<br/>RAM: 16 GB | CPU: 8 cores<br/>Disque: 500 GB SSD<br/>IP: 10.0.1.10"]
+            D1["🐳 Container: File Loader<br/>──────────<br/>Image: python:3.11<br/>RAM: 2 GB | CPU: 1 core<br/>──────────<br/>Rôle: Lecture JSON/CSV<br/>Volume: /data/input<br/>Port: 8000"]
+
+            D2["🐳 Container: Kafka Producer<br/>──────────<br/>Image: python:3.11<br/>RAM: 2 GB | CPU: 1 core<br/>──────────<br/>Rôle: Publication vers topics<br/>Port: 9093"]
+
+            D3["🐳 Container: Zookeeper<br/>──────────<br/>Image: zookeeper:3.8<br/>RAM: 2 GB | CPU: 1 core<br/>──────────<br/>Port: 2181<br/>Volume: /var/lib/zookeeper"]
+
+            D4["🐳 Container: Kafka Broker 01<br/>──────────<br/>Image: confluentinc/kafka:7.5<br/>RAM: 4 GB | CPU: 2 cores<br/>──────────<br/>Topics:<br/>📨 Profils (2 partitions)<br/>📨 Factures (2 partitions)<br/>──────────<br/>Port: 9092<br/>Volume: /var/lib/kafka"]
+
+            D5["🐳 Container: Kafka Broker 02<br/>──────────<br/>Image: confluentinc/kafka:7.5<br/>RAM: 4 GB | CPU: 2 cores<br/>──────────<br/>Rôle: Réplication topics<br/>Port: 9094"]
         end
-        
-        subgraph Zone2["🌍 Zone Traitement Distribué"]
-            subgraph Spark["⚡ Cluster Spark"]
-                N4["🖥️ Spark-Master<br/>──────────────<br/>OS: Ubuntu 22.04<br/>RAM: 32 GB | CPU: 16 cores<br/>──────────────<br/>Rôles:<br/>• Coordination workers<br/>• Distribution tâches<br/>• Interrogation localisation<br/>──────────────<br/>IP: 10.0.2.10 | Port: 7077"]
-                
-                N5["🖥️ Spark-Worker-01<br/>──────────────<br/>RAM: 16 GB | CPU: 8 cores<br/>──────────────<br/>Traitement:<br/>• Freelances ID 1-500<br/>• Partition 0<br/>──────────────<br/>Executor: 4 GB | Cores: 4<br/>──────────────<br/>IP: 10.0.2.20"]
-                
-                N6["🖥️ Spark-Worker-02<br/>──────────────<br/>RAM: 16 GB | CPU: 8 cores<br/>──────────────<br/>Traitement:<br/>• Freelances ID 501-1000<br/>• Partition 1<br/>──────────────<br/>Executor: 4 GB | Cores: 4<br/>──────────────<br/>IP: 10.0.2.21"]
-            end
+
+        subgraph VM2["🖥️ VM-02 : Traitement Spark<br/>──────────<br/>Ubuntu 22.04<br/>RAM: 32 GB | CPU: 16 cores<br/>Disque: 1 TB SSD<br/>IP: 10.0.2.10"]
+            D6["🐳 Container: Spark Master<br/>──────────<br/>Image: bitnami/spark:3.5<br/>RAM: 8 GB | CPU: 4 cores<br/>──────────<br/>Rôles:<br/>• Coordination workers<br/>• Consumer Kafka<br/>• Distribution tâches<br/>──────────<br/>Port: 7077, 8080<br/>Env: SPARK_MODE=master"]
+
+            D7["🐳 Container: Spark Worker 01<br/>──────────<br/>Image: bitnami/spark:3.5<br/>RAM: 10 GB | CPU: 5 cores<br/>──────────<br/>Traitement:<br/>• Freelances ID 1-500<br/>• Partition 0<br/>──────────<br/>Port: 8081<br/>Env: SPARK_WORKER_MEMORY=10G"]
+
+            D8["🐳 Container: Spark Worker 02<br/>──────────<br/>Image: bitnami/spark:3.5<br/>RAM: 10 GB | CPU: 5 cores<br/>──────────<br/>Traitement:<br/>• Freelances ID 501-1000<br/>• Partition 1<br/>──────────<br/>Port: 8082<br/>Env: SPARK_WORKER_MEMORY=10G"]
         end
-        
-        subgraph Storage["🗄️ Stockage PostgreSQL"]
-            N7["💾 Serveur PostgreSQL (PGsql)<br/>──────────────<br/>OS: Ubuntu 22.04<br/>RAM: 64 GB | CPU: 16 cores<br/>Disque: 2 TB SSD<br/>──────────────<br/>Base de données:<br/>📊 freelances_db<br/>──────────────<br/>Tables:<br/>• Freelances (profils)<br/>• Factures (paiements)<br/>• Indicateurs (KPIs)<br/>──────────────<br/>IP: 10.0.3.10 | Port: 5432"]
-            
-            N8["📦 Object Storage<br/>──────────────<br/>Service: S3 / Azure Blob<br/>Capacité: 10 TB<br/>──────────────<br/>Contenu:<br/>• Fichiers JSON sources<br/>• Fichiers CSV sources<br/>• Backups BDD<br/>• Archives logs"]
+
+        subgraph VM3["🖥️ VM-03 : Stockage PostgreSQL<br/>──────────<br/>Ubuntu 22.04<br/>RAM: 16 GB | CPU: 8 cores<br/>Disque: 2 TB SSD<br/>IP: 10.0.3.10"]
+            D9["🐳 Container: PostgreSQL 15<br/>──────────<br/>Image: postgres:15<br/>RAM: 12 GB | CPU: 6 cores<br/>──────────<br/>Database: freelances_db<br/>──────────<br/>Tables:<br/>• Freelances (profils)<br/>• Factures (paiements)<br/>• Indicateurs (KPIs)<br/>──────────<br/>Port: 5432<br/>Volume: /var/lib/postgresql<br/>Backup automatique"]
+
+            D10["🐳 Container: PgAdmin<br/>──────────<br/>Image: dpage/pgadmin4<br/>RAM: 1 GB | CPU: 1 core<br/>──────────<br/>Rôle: Interface admin BDD<br/>Port: 5050"]
         end
-    end
-    
-    subgraph OnPrem["🏢 POSTE CLIENT"]
-        N9["💻 Poste Utilisateur<br/>──────────────<br/>OS: Windows 11<br/>──────────────<br/>Applications:<br/>• Power BI Desktop<br/>  └─ Dashboard Financier<br/>  └─ Dashboard Ressources<br/>  └─ Suivi Temps Réel<br/>──────────────<br/>Connexion: HTTPS + VPN"]
-    end
-    
-    subgraph External["🌐 SOURCES EXTERNES"]
-        N10["📁 Répertoire Fichiers<br/>──────────────<br/>📄 Profils freelances (JSON)<br/>📊 Factures (CSV)<br/>──────────────<br/>Fréquence: Quotidien<br/>Protocole: SFTP | Port: 22<br/>──────────────<br/>Path: /data/input"]
+
+        subgraph VM4["🖥️ VM-04 : Monitoring<br/>──────────<br/>Ubuntu 22.04<br/>RAM: 8 GB | CPU: 4 cores<br/>Disque: 500 GB SSD<br/>IP: 10.0.4.10"]
+            D11["🐳 Container: Grafana<br/>──────────<br/>Image: grafana/grafana<br/>RAM: 2 GB | CPU: 1 core<br/>──────────<br/>Rôle: Dashboards monitoring<br/>Port: 3000"]
+
+            D12["🐳 Container: Prometheus<br/>──────────<br/>Image: prom/prometheus<br/>RAM: 3 GB | CPU: 1 core<br/>──────────<br/>Rôle: Métriques système<br/>Port: 9090"]
+
+            D13["🐳 Container: Kafka UI<br/>──────────<br/>Image: provectuslabs/kafka-ui<br/>RAM: 1 GB | CPU: 1 core<br/>──────────<br/>Rôle: Monitoring Kafka<br/>Port: 8080"]
+        end
+
+        subgraph Storage["☁️ OBJECT STORAGE"]
+            N8["📦 S3 / Azure Blob Storage<br/>──────────<br/>Capacité: 5 TB<br/>──────────<br/>Contenu:<br/>• Fichiers sources (JSON/CSV)<br/>• Backups Docker volumes<br/>• Images Docker registry<br/>• Logs applicatifs<br/>• Snapshots VMs"]
+        end
     end
 
-    N10 -->|"SFTP Upload<br/>JSON + CSV"| N1
-    N1 -->|"Kafka Producer<br/>Port 9092"| N2
-    N2 <-->|"Réplication<br/>Topics P+F"| N3
-    N2 -->|"Consumer<br/>Profils + Factures"| N4
-    N4 -->|"Spark RPC<br/>Distrib 1-500"| N5
-    N4 -->|"Spark RPC<br/>Distrib 501-1000"| N6
-    N5 -->|"JDBC Write<br/>Port 5432"| N7
-    N6 -->|"JDBC Write<br/>Port 5432"| N7
-    N4 -.->|"Query: Données<br/>freelance #245?"| N5
-    N5 -.->|"Response: Oui,<br/>en mémoire"| N4
-    N1 -.->|"Backup sources"| N8
-    N7 -.->|"Backup DB"| N8
-    N7 -->|"HTTPS/TLS<br/>DirectQuery"| N9
-    N9 -.->|"API Monitoring"| N4
+    subgraph OnPrem["🏢 POSTE CLIENT"]
+        N9["💻 Poste Utilisateur<br/>──────────<br/>OS: Windows 11<br/>──────────<br/>Applications:<br/>• Power BI Desktop<br/>• Docker Desktop (dev)<br/>• Git + VS Code<br/>• Web Browser<br/>──────────<br/>Connexion: HTTPS + VPN"]
+    end
+
+    subgraph External["🌐 SOURCES EXTERNES"]
+        N10["📁 Dépôt Fichiers<br/>──────────<br/>📄 Profils freelances (JSON)<br/>📊 Factures (CSV)<br/>──────────<br/>Protocole: SFTP / API<br/>Fréquence: Quotidien<br/>Path: /data/input"]
+    end
+
+    subgraph Registry["🐳 DOCKER REGISTRY"]
+        DR["Docker Hub / Private Registry<br/>──────────<br/>Images personnalisées:<br/>• freelanceflow/loader:v1.0<br/>• freelanceflow/producer:v1.0<br/>• freelanceflow/spark-jobs:v1.0<br/>──────────<br/>Images officielles:<br/>• postgres:15<br/>• kafka:7.5<br/>• spark:3.5<br/>• grafana, prometheus"]
+    end
+
+    N10 -->|"SFTP Upload<br/>Port 22"| D1
+    D1 -->|"Fichiers traités"| D2
+    D2 -->|"Kafka Protocol<br/>Port 9092"| D4
+    D3 <-->|"Coordination<br/>Zookeeper"| D4
+    D4 <-->|"Réplication<br/>Topics"| D5
+    D4 -->|"Consumer<br/>Topics P+F"| D6
+
+    D6 -->|"Spark RPC<br/>Distribue 1-500"| D7
+    D6 -->|"Spark RPC<br/>Distribue 501-1000"| D8
+    D6 -.->|"Query: Données<br/>freelance #245?"| D7
+    D7 -.->|"Response: Oui"| D6
+
+    D7 -->|"JDBC Write<br/>Port 5432"| D9
+    D8 -->|"JDBC Write<br/>Port 5432"| D9
+
+    D9 -->|"HTTPS<br/>DirectQuery"| N9
+    D10 -.->|"Admin BDD"| D9
+
+    D11 -->|"Scrape metrics"| D6
+    D11 -->|"Scrape metrics"| D9
+    D12 -->|"Push metrics"| D11
+    D13 -->|"Monitor"| D4
+
+    N9 -.->|"Monitoring UI"| D11
+    N9 -.->|"Spark UI"| D6
+    N9 -.->|"Kafka UI"| D13
+
+    D1 -.->|"Backup"| N8
+    D4 -.->|"Backup"| N8
+    D9 -.->|"Backup"| N8
+
+    DR -.->|"Pull images"| VM1
+    DR -.->|"Pull images"| VM2
+    DR -.->|"Pull images"| VM3
+    DR -.->|"Pull images"| VM4
 
     style Cloud fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-    style Zone1 fill:#fff9c4,stroke:#f57f17,stroke-width:2px
-    style Zone2 fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
-    style Storage fill:#c8e6c9,stroke:#388e3c,stroke-width:2px
+    style VM1 fill:#fff3e0,stroke:#e65100,stroke-width:3px
+    style VM2 fill:#ffebee,stroke:#c62828,stroke-width:4px
+    style VM3 fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
+    style VM4 fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style Storage fill:#e0f2f1,stroke:#00695c,stroke-width:2px
     style OnPrem fill:#b39ddb,stroke:#5e35b1,stroke-width:2px
     style External fill:#e0e0e0,stroke:#616161,stroke-width:2px
-    
-    style N4 fill:#ef5350,color:#fff,stroke:#c62828,stroke-width:3px
-    style N7 fill:#66bb6a,stroke:#2e7d32,stroke-width:3px
-    style N2 fill:#ffd54f,stroke:#f57f17,stroke-width:3px
+    style Registry fill:#bbdefb,stroke:#1976d2,stroke-width:2px
+
+    style D1 fill:#42a5f5,color:#fff
+    style D2 fill:#42a5f5,color:#fff
+    style D3 fill:#81c784
+    style D4 fill:#ffd54f,stroke:#f57f17,stroke-width:2px
+    style D5 fill:#ffd54f
+    style D6 fill:#ef5350,color:#fff,stroke:#c62828,stroke-width:3px
+    style D7 fill:#ff8a80
+    style D8 fill:#ff8a80
+    style D9 fill:#66bb6a,stroke:#2e7d32,stroke-width:3px
+    style D10 fill:#aed581
+    style D11 fill:#ba68c8,color:#fff
+    style D12 fill:#ce93d8
+    style D13 fill:#f48fb1
 ```
 
 ---
