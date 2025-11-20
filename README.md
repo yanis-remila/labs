@@ -128,7 +128,6 @@ graph TB
 ---
 
 ### ✅ 2. Diagramme de Déploiement
-**Fichier** : `diagramme-deploiement-v2.mermaid`
 
 **Infrastructure Cloud en 3 zones** :
 
@@ -154,10 +153,76 @@ graph TB
 - JDBC (Port 5432) : BDD
 - HTTPS : Power BI
 
+```mermaid
+graph TB
+    subgraph Cloud["☁️ INFRASTRUCTURE CLOUD"]
+        subgraph Zone1["🌍 Zone Ingestion & Streaming"]
+            subgraph Ingestion["📥 Serveur Ingestion"]
+                N1["🖥️ Serveur Ingestion-01<br/>──────────────<br/>OS: Ubuntu 22.04<br/>RAM: 8 GB | CPU: 4 cores<br/>──────────────<br/>Services:<br/>• File Loader JSON/CSV<br/>• Kafka Producer<br/>──────────────<br/>IP: 10.0.1.10"]
+            end
+            
+            subgraph Kafka["🚀 Cluster Kafka - 2 Topics"]
+                N2["🖥️ Kafka-Broker-01<br/>──────────────<br/>OS: Ubuntu 22.04<br/>RAM: 16 GB | CPU: 8 cores<br/>──────────────<br/>Topics hébergés:<br/>📨 Topic: Profils<br/>  └─ Partitions: 2<br/>📨 Topic: Factures<br/>  └─ Partitions: 2<br/>──────────────<br/>IP: 10.0.1.20 | Port: 9092"]
+                
+                N3["🖥️ Kafka-Broker-02<br/>──────────────<br/>Réplication<br/>RAM: 16 GB<br/>──────────────<br/>Réplique topics:<br/>• Profils (replica)<br/>• Factures (replica)<br/>──────────────<br/>IP: 10.0.1.21 | Port: 9092"]
+            end
+        end
+        
+        subgraph Zone2["🌍 Zone Traitement Distribué"]
+            subgraph Spark["⚡ Cluster Spark"]
+                N4["🖥️ Spark-Master<br/>──────────────<br/>OS: Ubuntu 22.04<br/>RAM: 32 GB | CPU: 16 cores<br/>──────────────<br/>Rôles:<br/>• Coordination workers<br/>• Distribution tâches<br/>• Interrogation localisation<br/>──────────────<br/>IP: 10.0.2.10 | Port: 7077"]
+                
+                N5["🖥️ Spark-Worker-01<br/>──────────────<br/>RAM: 16 GB | CPU: 8 cores<br/>──────────────<br/>Traitement:<br/>• Freelances ID 1-500<br/>• Partition 0<br/>──────────────<br/>Executor: 4 GB | Cores: 4<br/>──────────────<br/>IP: 10.0.2.20"]
+                
+                N6["🖥️ Spark-Worker-02<br/>──────────────<br/>RAM: 16 GB | CPU: 8 cores<br/>──────────────<br/>Traitement:<br/>• Freelances ID 501-1000<br/>• Partition 1<br/>──────────────<br/>Executor: 4 GB | Cores: 4<br/>──────────────<br/>IP: 10.0.2.21"]
+            end
+        end
+        
+        subgraph Storage["🗄️ Stockage PostgreSQL"]
+            N7["💾 Serveur PostgreSQL (PGsql)<br/>──────────────<br/>OS: Ubuntu 22.04<br/>RAM: 64 GB | CPU: 16 cores<br/>Disque: 2 TB SSD<br/>──────────────<br/>Base de données:<br/>📊 freelances_db<br/>──────────────<br/>Tables:<br/>• Freelances (profils)<br/>• Factures (paiements)<br/>• Indicateurs (KPIs)<br/>──────────────<br/>IP: 10.0.3.10 | Port: 5432"]
+            
+            N8["📦 Object Storage<br/>──────────────<br/>Service: S3 / Azure Blob<br/>Capacité: 10 TB<br/>──────────────<br/>Contenu:<br/>• Fichiers JSON sources<br/>• Fichiers CSV sources<br/>• Backups BDD<br/>• Archives logs"]
+        end
+    end
+    
+    subgraph OnPrem["🏢 POSTE CLIENT"]
+        N9["💻 Poste Utilisateur<br/>──────────────<br/>OS: Windows 11<br/>──────────────<br/>Applications:<br/>• Power BI Desktop<br/>  └─ Dashboard Financier<br/>  └─ Dashboard Ressources<br/>  └─ Suivi Temps Réel<br/>──────────────<br/>Connexion: HTTPS + VPN"]
+    end
+    
+    subgraph External["🌐 SOURCES EXTERNES"]
+        N10["📁 Répertoire Fichiers<br/>──────────────<br/>📄 Profils freelances (JSON)<br/>📊 Factures (CSV)<br/>──────────────<br/>Fréquence: Quotidien<br/>Protocole: SFTP | Port: 22<br/>──────────────<br/>Path: /data/input"]
+    end
+
+    N10 -->|"SFTP Upload<br/>JSON + CSV"| N1
+    N1 -->|"Kafka Producer<br/>Port 9092"| N2
+    N2 <-->|"Réplication<br/>Topics P+F"| N3
+    N2 -->|"Consumer<br/>Profils + Factures"| N4
+    N4 -->|"Spark RPC<br/>Distrib 1-500"| N5
+    N4 -->|"Spark RPC<br/>Distrib 501-1000"| N6
+    N5 -->|"JDBC Write<br/>Port 5432"| N7
+    N6 -->|"JDBC Write<br/>Port 5432"| N7
+    N4 -.->|"Query: Données<br/>freelance #245?"| N5
+    N5 -.->|"Response: Oui,<br/>en mémoire"| N4
+    N1 -.->|"Backup sources"| N8
+    N7 -.->|"Backup DB"| N8
+    N7 -->|"HTTPS/TLS<br/>DirectQuery"| N9
+    N9 -.->|"API Monitoring"| N4
+
+    style Cloud fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
+    style Zone1 fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    style Zone2 fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
+    style Storage fill:#c8e6c9,stroke:#388e3c,stroke-width:2px
+    style OnPrem fill:#b39ddb,stroke:#5e35b1,stroke-width:2px
+    style External fill:#e0e0e0,stroke:#616161,stroke-width:2px
+    
+    style N4 fill:#ef5350,color:#fff,stroke:#c62828,stroke-width:3px
+    style N7 fill:#66bb6a,stroke:#2e7d32,stroke-width:3px
+    style N2 fill:#ffd54f,stroke:#f57f17,stroke-width:3px
+```
+
 ---
 
 ### ✅ 3. Indicateurs BI et Machine Learning
-**Fichier** : `indicateurs-bi-ml-v2.md`
 
 #### 📊 3 Dashboards Power BI
 
@@ -220,89 +285,364 @@ graph TB
 ---
 
 ### ✅ 4. Backlog Teams
-**Fichier** : `backlog-teams-v2.md`
 
-**7 Epics, 14 User Stories**
 
-**EPIC 1 : Infrastructure Kafka**
-- US-1.1 : Configuration 2 Topics (8 pts)
-- US-1.2 : Script ingestion JSON/CSV (5 pts)
+#### 📋 FreelanceFlow - Backlog Projet (Version Finale)
 
-**EPIC 2 : Cluster Spark**
-- US-2.1 : Déploiement Spark (8 pts)
-- US-2.2 : Consumer Kafka → Spark (13 pts)
+## 🎯 EPIC 1 : Infrastructure Kafka & Ingestion
 
-**EPIC 3 : Transformations SQL**
-- US-3.1 : T1 Nettoyage (5 pts)
-- US-3.2 : T2 Calculs Financiers (8 pts)
-- US-3.3 : T3 Agrégations (8 pts)
+### 📦 User Story 1.1 : Configuration Kafka avec 2 Topics
+**En tant que** Data Engineer  
+**Je veux** configurer un cluster Kafka avec 2 topics distincts  
+**Afin de** séparer les flux Profils et Factures
 
-**EPIC 4 : Data Warehouse**
-- US-4.1 : Schéma PostgreSQL (5 pts)
-- US-4.2 : Pipeline ETL (8 pts)
+**Critères d'acceptation** :
+- [ ] Cluster Kafka déployé avec 2 brokers
+- [ ] **Topic "Profils"** créé avec 2 partitions
+- [ ] **Topic "Factures"** créé avec 2 partitions
+- [ ] Réplication factor = 2 pour chaque topic
+- [ ] Tests production/consommation sur les 2 topics
+- [ ] Monitoring topics dans Kafka UI
 
-**EPIC 5 : Dashboards Power BI**
-- US-5.1 : Dashboard Financier (5 pts)
-- US-5.2 : Dashboard Ressources (5 pts)
-- US-5.3 : Suivi Temps Réel (8 pts)
-
-**EPIC 6 : Machine Learning**
-- US-6.1 : Prédiction CA (13 pts)
-- US-6.2 : Détection anomalies (13 pts)
-
-**Planning : 7 Sprints - 14 semaines**
-
-| Sprint | Stories | Points | Objectif |
-|--------|---------|--------|----------|
-| Sprint 1 | 1.1, 1.2, 2.1 | 21 | Infra Kafka + Spark |
-| Sprint 2 | 2.2, 3.1, 3.2, 4.1 | 31 | Transformations + DB |
-| Sprint 3 | 3.3, 4.2, 5.1 | 21 | T3 + Dashboard Financier |
-| Sprint 4 | 5.2 | 5 | Dashboard Ressources |
-| Sprint 5 | 5.3 | 8 | Suivi Temps Réel |
-| Sprint 6 | 6.1 | 13 | ML Prédiction |
-| Sprint 7 | 6.2 | 13 | ML Anomalies |
-
-**Total : 125 points**
+**Priorité** : 🔴 Haute  
+**Points de complexité** : 8  
+**Sprint** : Sprint 1  
+**Assigné à** : @DataEngineering  
+**Tags** : `infrastructure` `kafka` `topics` `streaming`
 
 ---
 
-### ✅ 5. Fichier Excel Git-Backlog
-**Fichier** : `suivi_git_backlog_v2.xlsx`
+### 📦 User Story 1.2 : Script ingestion JSON/CSV vers Kafka
+**En tant que** Data Engineer  
+**Je veux** créer un producer Kafka qui lit JSON et CSV  
+**Afin de** publier vers les bons topics
 
-**3 Feuilles Excel** :
+**Critères d'acceptation** :
+- [ ] Lecture fichiers JSON (profils freelances)
+- [ ] Lecture fichiers CSV (factures)
+- [ ] Publication JSON → Topic "Profils"
+- [ ] Publication CSV → Topic "Factures"
+- [ ] Chargement quotidien automatisé
+- [ ] Logs des publications
+- [ ] Gestion erreurs et retry
 
-#### Feuille 1 : Suivi Git-Backlog
-- **14 User Stories** avec :
-    - Epic, ID, Titre, Priorité, Points
-    - Sprint, Assignation, Statut
-    - Liens Git (branches, commits)
-    - Liens Backlog (Azure DevOps)
-    - Dates (début, fin)
-    - Notes détaillées
+**Priorité** : 🔴 Haute  
+**Points de complexité** : 5  
+**Sprint** : Sprint 1  
+**Assigné à** : @Developer1  
+**Tags** : `python` `kafka-producer` `json` `csv`
 
-**Mise en forme** :
-- 🟢 Terminé (fond vert)
-- 🟡 En cours (fond jaune)
-- 🔴 À faire (fond rouge)
-- Priorités colorées (Haute=rouge, Moyenne=orange, Basse=vert)
+---
 
-#### Feuille 2 : Statistiques
-**KPIs automatiques** (formules Excel) :
-- Total User Stories
-- US par statut (Terminé, En cours, À faire)
-- Points totaux et complétés
-- Taux de complétion (%)
-- Répartition par priorité
+## ⚡ EPIC 2 : Cluster Spark & Distribution
 
-#### Feuille 3 : Architecture
-**Résumé technique** :
-- Sources : JSON + CSV
-- Kafka : 2 topics (Profils, Factures)
-- Spark : 1 Master + 2 Workers
-- Transformations : T1, T2, T3
-- Stockage : PostgreSQL (3 tables)
-- BI : 3 dashboards Power BI
-- ML : 2 modèles (Prédiction + Détection)
+### 📦 User Story 2.1 : Déploiement Cluster Spark
+**En tant que** Data Engineer  
+**Je veux** déployer 1 master + 2 workers  
+**Afin de** traiter les données en parallèle
+
+**Critères d'acceptation** :
+- [ ] Spark Master configuré (32 GB RAM, 16 cores)
+- [ ] Worker 1 : traitement ID 1-500 (16 GB RAM)
+- [ ] Worker 2 : traitement ID 501-1000 (16 GB RAM)
+- [ ] Interface Web Spark accessible
+- [ ] Tests de distribution fonctionnels
+- [ ] Configuration mémoire optimisée
+
+**Priorité** : 🔴 Haute  
+**Points de complexité** : 8  
+**Sprint** : Sprint 1  
+**Assigné à** : @DevOps  
+**Tags** : `spark` `infrastructure` `distributed`
+
+---
+
+### 📦 User Story 2.2 : Consumer Kafka vers Spark
+**En tant que** Data Engineer  
+**Je veux** consommer les 2 topics Kafka avec Spark Streaming  
+**Afin de** alimenter le traitement distribué
+
+**Critères d'acceptation** :
+- [ ] Consumer Spark Streaming fonctionnel
+- [ ] Lecture Topic "Profils"
+- [ ] Lecture Topic "Factures"
+- [ ] Transformation en DataFrame Spark
+- [ ] Distribution vers workers appropriés
+- [ ] Gestion offsets Kafka
+- [ ] Tests d'intégration
+
+**Priorité** : 🔴 Haute  
+**Points de complexité** : 13  
+**Sprint** : Sprint 2  
+**Assigné à** : @Developer2  
+**Tags** : `spark-streaming` `kafka-consumer` `dataframe`
+
+---
+
+## 💾 EPIC 3 : Transformations Spark SQL
+
+### 📦 User Story 3.1 : T1 - Nettoyage des données
+**En tant que** Data Analyst  
+**Je veux** implémenter le module de nettoyage  
+**Afin de** supprimer doublons et valider les données
+
+**Critères d'acceptation** :
+- [ ] Suppression doublons (profils + factures)
+- [ ] Validation emails (format correct)
+- [ ] Validation montants (> 0)
+- [ ] Validation dates (format ISO)
+- [ ] Gestion valeurs nulles
+- [ ] Logs des rejets
+- [ ] Métriques qualité données
+
+**Priorité** : 🔴 Haute  
+**Points de complexité** : 5  
+**Sprint** : Sprint 2  
+**Assigné à** : @DataAnalyst  
+**Tags** : `spark-sql` `data-quality` `cleaning`
+
+---
+
+### 📦 User Story 3.2 : T2 - Calculs Financiers
+**En tant que** Data Analyst  
+**Je veux** calculer les métriques financières  
+**Afin de** obtenir CA par freelance et revenus mensuels
+
+**Critères d'acceptation** :
+- [ ] Calcul CA par freelance
+- [ ] Calcul revenus mensuels
+- [ ] TJM moyen par compétence
+- [ ] Agrégation par période
+- [ ] Requêtes SQL optimisées (< 5s)
+- [ ] Tests unitaires calculs
+
+**Priorité** : 🔴 Haute  
+**Points de complexité** : 8  
+**Sprint** : Sprint 2  
+**Assigné à** : @DataAnalyst  
+**Tags** : `spark-sql` `financial` `kpi`
+
+---
+
+### 📦 User Story 3.3 : T3 - Agrégations
+**En tant que** Data Analyst  
+**Je veux** calculer les agrégations métier  
+**Afin d'** obtenir top compétences et taux d'occupation
+
+**Critères d'acceptation** :
+- [ ] Top compétences demandées
+- [ ] Taux d'occupation : 78% (target)
+- [ ] Statistiques par catégorie
+- [ ] Freelances disponibles par compétence
+- [ ] Requêtes avec window functions
+- [ ] Performance < 3s
+
+**Priorité** : 🟡 Moyenne  
+**Points de complexité** : 8  
+**Sprint** : Sprint 3  
+**Assigné à** : @DataAnalyst  
+**Tags** : `spark-sql` `aggregation` `analytics`
+
+---
+
+## 🗄️ EPIC 4 : Data Warehouse PostgreSQL
+
+### 📦 User Story 4.1 : Création schéma PostgreSQL (PGsql)
+**En tant que** Data Architect  
+**Je veux** créer le schéma de base PostgreSQL  
+**Afin de** stocker les 3 tables principales
+
+**Critères d'acceptation** :
+- [ ] Base `freelances_db` créée
+- [ ] Table `Freelances` (profils + compétences)
+- [ ] Table `Factures` (historique paiements)
+- [ ] Table `Indicateurs` (KPIs + statistiques)
+- [ ] Index optimisés
+- [ ] Contraintes d'intégrité
+- [ ] Documentation schéma
+
+**Priorité** : 🔴 Haute  
+**Points de complexité** : 5  
+**Sprint** : Sprint 2  
+**Assigné à** : @DataArchitect  
+**Tags** : `postgresql` `pgsql` `schema` `database`
+
+---
+
+### 📦 User Story 4.2 : Pipeline ETL Spark → PostgreSQL
+**En tant que** Data Engineer  
+**Je veux** écrire les données transformées dans PostgreSQL  
+**Afin de** persister les résultats des transformations T1, T2, T3
+
+**Critères d'acceptation** :
+- [ ] Connexion JDBC Spark → PostgreSQL
+- [ ] Écriture table Freelances
+- [ ] Écriture table Factures
+- [ ] Écriture table Indicateurs
+- [ ] Mode upsert (insert/update)
+- [ ] Transactions ACID
+- [ ] Tests de charge
+
+**Priorité** : 🔴 Haute  
+**Points de complexité** : 8  
+**Sprint** : Sprint 3  
+**Assigné à** : @Developer1  
+**Tags** : `etl` `jdbc` `postgresql` `pgsql`
+
+---
+
+## 📊 EPIC 5 : Dashboards Power BI
+
+### 📦 User Story 5.1 : Dashboard Financier
+**En tant que** Directeur Financier  
+**Je veux** visualiser le Top 10 et l'évolution des revenus  
+**Afin de** suivre la performance financière
+
+**Critères d'acceptation** :
+- [ ] **Top 10 freelances par CA** : graphique bar chart
+- [ ] **Évolution revenus mensuels** : line chart 12 mois
+- [ ] Filtres : période, compétence
+- [ ] KPI : CA total, TJM moyen
+- [ ] Refresh quotidien automatique
+- [ ] Export Excel
+
+**Priorité** : 🔴 Haute  
+**Points de complexité** : 5  
+**Sprint** : Sprint 3  
+**Assigné à** : @BIAnalyst  
+**Tags** : `powerbi` `dashboard` `finance`
+
+---
+
+### 📦 User Story 5.2 : Dashboard Ressources
+**En tant que** Responsable RH  
+**Je veux** voir les compétences disponibles et le taux d'occupation  
+**Afin d'** optimiser l'allocation des freelances
+
+**Critères d'acceptation** :
+- [ ] **Compétences disponibles** : pie chart par techno
+- [ ] **Taux d'occupation : 78%** : gauge visual
+- [ ] Répartition freelances disponibles/en mission
+- [ ] Filtres par compétence
+- [ ] Alerte si taux < 60% ou > 90%
+- [ ] Détail freelances disponibles (table)
+
+**Priorité** : 🔴 Haute  
+**Points de complexité** : 5  
+**Sprint** : Sprint 4  
+**Assigné à** : @BIAnalyst  
+**Tags** : `powerbi` `dashboard` `hr` `resources`
+
+---
+
+### 📦 User Story 5.3 : Suivi Temps Réel
+**En tant que** Manager Opérationnel  
+**Je veux** voir les missions en cours et nouvelles factures  
+**Afin de** piloter l'activité en temps réel
+
+**Critères d'acceptation** :
+- [ ] **Missions en cours** : compteur + liste
+- [ ] **Nouvelles factures** : compteur du jour
+- [ ] Refresh toutes les 30 secondes
+- [ ] Dernières 10 factures créées (table)
+- [ ] Alertes : factures en retard
+- [ ] Indicateur statut système (vert/orange/rouge)
+
+**Priorité** : 🟡 Moyenne  
+**Points de complexité** : 8  
+**Sprint** : Sprint 5  
+**Assigné à** : @BIAnalyst  
+**Tags** : `powerbi` `realtime` `streaming` `monitoring`
+
+---
+
+## 🤖 EPIC 6 : Machine Learning
+
+### 📦 User Story 6.1 : Modèle prédiction CA
+**En tant que** Data Scientist  
+**Je veux** créer un modèle Time Series pour prédire le CA  
+**Afin d'** anticiper les revenus des 3 prochains mois
+
+**Critères d'acceptation** :
+- [ ] Collecte historique CA mensuel (12+ mois)
+- [ ] Feature engineering (saisonnalité, tendances)
+- [ ] Entraînement modèle (ARIMA/Prophet)
+- [ ] MAPE < 15%
+- [ ] Prédictions à 3 mois
+- [ ] Intégration dans Dashboard Financier
+- [ ] Documentation modèle
+
+**Priorité** : 🟡 Moyenne  
+**Points de complexité** : 13  
+**Sprint** : Sprint 6  
+**Assigné à** : @DataScientist  
+**Tags** : `ml` `timeseries` `forecasting` `arima`
+
+---
+
+### 📦 User Story 6.2 : Détection anomalies factures
+**En tant que** Contrôleur Financier  
+**Je veux** détecter automatiquement les factures suspectes  
+**Afin de** prévenir les fraudes
+
+**Critères d'acceptation** :
+- [ ] Algorithme Isolation Forest
+- [ ] Features : montant, fréquence, TJM
+- [ ] Taux faux positifs < 5%
+- [ ] Intégration Suivi Temps Réel
+- [ ] Alertes automatiques
+- [ ] Dashboard anomalies détectées
+
+**Priorité** : 🟢 Basse  
+**Points de complexité** : 13  
+**Sprint** : Sprint 7  
+**Assigné à** : @DataScientist  
+**Tags** : `ml` `anomaly-detection` `fraud`
+
+---
+
+## 🔧 EPIC 7 : DevOps & Monitoring
+
+### 📦 User Story 7.1 : CI/CD Pipeline
+**En tant que** DevOps Engineer  
+**Je veux** automatiser le déploiement  
+**Afin d'** accélérer les mises en production
+
+**Critères d'acceptation** :
+- [ ] Pipeline GitHub Actions / GitLab CI
+- [ ] Tests automatisés (unit + integration)
+- [ ] Build Docker images (Kafka, Spark)
+- [ ] Déploiement auto sur dev
+- [ ] Validation manuelle pour prod
+- [ ] Rollback automatique si erreur
+
+**Priorité** : 🟡 Moyenne  
+**Points de complexité** : 8  
+**Sprint** : Sprint 3  
+**Assigné à** : @DevOps  
+**Tags** : `cicd` `automation` `deployment` `docker`
+
+---
+
+### 📦 User Story 7.2 : Monitoring système
+**En tant que** Ops Engineer  
+**Je veux** monitorer la santé de l'infrastructure  
+**Afin de** détecter les problèmes rapidement
+
+**Critères d'acceptation** :
+- [ ] Monitoring Kafka (lag, throughput)
+- [ ] Monitoring Spark (jobs, stages)
+- [ ] Monitoring PostgreSQL (connexions, queries)
+- [ ] Métriques système (CPU, RAM, Disk)
+- [ ] Alertes emails/Slack
+- [ ] Dashboard Grafana
+- [ ] SLA : uptime > 99%
+
+**Priorité** : 🟡 Moyenne  
+**Points de complexité** : 8  
+**Sprint** : Sprint 4  
+**Assigné à** : @DevOps  
+**Tags** : `monitoring` `grafana` `alerting` `sla`
 
 ---
 
@@ -311,7 +651,7 @@ graph TB
 ### 📥 Sources de Données
 - **Fichiers JSON** : Profils freelances
   ```json
-  {nom: "Dupont", compétences: ["Python"], tarif_jour: 450€}
+  {"nom": "Dupont", "compétences": ["Python"], "tarif_jour": "450€"}
   ```
 - **Fichiers CSV** : Factures
   ```
@@ -408,166 +748,3 @@ graph TB
 - Power BI affiche en temps réel (30s refresh)
 
 ---
-
-## 🛠️ STACK TECHNIQUE
-
-| Composant | Technologie | Version | Rôle |
-|-----------|------------|---------|------|
-| Sources | JSON + CSV | - | Données brutes |
-| Streaming | Apache Kafka | 3.x | 2 topics (Profils, Factures) |
-| Traitement | Apache Spark | 3.5 | 1 Master + 2 Workers |
-| SQL | Spark SQL | 3.5 | 3 Transformations (T1, T2, T3) |
-| Stockage | PostgreSQL | 15 | Data Warehouse (PGsql) |
-| BI | Power BI | Desktop | 3 Dashboards |
-| ML | Spark MLlib | 3.5 | 2 Modèles prédictifs |
-| CI/CD | GitHub Actions | - | Déploiement |
-| Cloud | AWS/Azure | - | Infrastructure |
-
----
-
-## 📊 KPIS PROJET
-
-| KPI | Cible | Mesure |
-|-----|-------|--------|
-| **CA Mensuel** | 150k€ | Dashboard Financier |
-| **Taux Occupation** | 78% | Dashboard Ressources |
-| **Top 10 CA** | 60% du total | Dashboard Financier |
-| **Nouvelles Factures/jour** | 20+ | Suivi Temps Réel |
-| **Prédiction CA MAPE** | < 15% | Modèle ML |
-| **Détection Anomalies** | > 85% | Modèle ML |
-
----
-
-## 🎓 POINTS CLÉS POUR LA SOUTENANCE
-
-### Architecture Technique ✅
-- **2 Topics Kafka** séparent Profils et Factures
-- **2 Workers Spark** traitent ID 1-500 et 501-1000
-- **3 Transformations** : Nettoyage → Calculs → Agrégations
-- **3 Dashboards** : Financier, Ressources, Temps Réel
-
-### Big Data ✅
-- **Volume** : 1000 freelances, milliers de factures
-- **Vélocité** : Kafka streaming temps réel
-- **Variété** : JSON + CSV
-- **Valeur** : KPIs métier + ML prédictif
-
-### Gestion Projet ✅
-- **Agile** : 7 sprints, 14 semaines
-- **125 points** de complexité
-- **14 User Stories** réparties en 7 Epics
-- **Excel de suivi** avec liens Git/Backlog
-
-### Démonstration ✅
-1. Montrer le **pipeline Mermaid** (flux complet)
-2. Expliquer la **distribution** (Worker 1 vs Worker 2)
-3. Présenter les **3 dashboards Power BI**
-4. Démontrer la **localité** (interrogation workers)
-
----
-
-## 📁 FICHIERS LIVRÉS
-
-```
-/mnt/user-data/outputs/
-├── pipeline-simple-clair.mermaid          # Pipeline complet
-├── diagramme-composants-v2.mermaid       # Architecture logique
-├── diagramme-deploiement-v2.mermaid      # Infrastructure physique
-├── indicateurs-bi-ml-v2.md               # KPIs + ML détaillés
-├── backlog-teams-v2.md                   # 14 User Stories
-├── suivi_git_backlog_v2.xlsx             # Excel de suivi
-└── recapitulatif-final.md                # Ce document
-```
-
----
-
-## 🚀 PROCHAINES ÉTAPES
-
-1. ✅ **Validation** : Revue avec le tuteur
-2. ⏳ **Présentation** : Slides PowerPoint
-3. ⏳ **Démo** : Prototype avec données test
-4. ⏳ **Rapport** : Document technique complet
-5. ⏳ **Soutenance** : Présentation + Q&A
-
----
-
-## 💡 STRUCTURE PRÉSENTATION (15-20 min)
-
-**1. Contexte (2 min)**
-- Plateforme de 1000 freelances
-- Problème : Volume de données + besoin temps réel
-
-**2. Architecture (8 min)**
-- Présenter le pipeline complet
-- Expliquer les 2 topics Kafka
-- Détailler la distribution sur 2 workers
-- Montrer les 3 transformations SQL
-
-**3. Dashboards & KPIs (5 min)**
-- Dashboard Financier : Top 10 + Évolution
-- Dashboard Ressources : Compétences + 78%
-- Suivi Temps Réel : Missions + Factures
-
-**4. Big Data (3 min)**
-- Distribution : 2x plus rapide
-- Localité : Éviter transferts réseau
-- Scalabilité : 2 → 4 → 8 workers
-- Temps réel : Kafka + Spark Streaming
-
-**5. Gestion Projet (2 min)**
-- 7 sprints, 14 semaines
-- 125 points de complexité
-- Excel de suivi Git-Backlog
-
----
-
-## ❓ QUESTIONS PROBABLES DU JURY
-
-**Techniques** :
-- *"Pourquoi 2 topics au lieu d'un seul ?"*
-  → Séparation des concerns, scalabilité indépendante
-
-- *"Comment gérer la panne d'un worker ?"*
-  → Spark réassigne automatiquement les tâches
-
-- *"Pourquoi PostgreSQL et pas MongoDB ?"*
-  → Besoin de transactions ACID et requêtes SQL complexes
-
-**Métier** :
-- *"Quel ROI pour l'entreprise ?"*
-  → Automatisation, insights temps réel, prédictions CA
-
-- *"Combien de temps pour déployer ?"*
-  → 14 semaines (7 sprints de 2 semaines)
-
-**Projet** :
-- *"Quelles difficultés rencontrées ?"*
-  → Synchronisation Kafka-Spark, optimisation requêtes SQL
-
-- *"Si c'était à refaire ?"*
-  → Commencer plus tôt les tests d'intégration
-
----
-
-## ✅ CHECKLIST FINALE
-
-- ✅ Pipeline FreelanceFlow validé
-- ✅ Diagramme composants (2 topics, 3 transformations)
-- ✅ Diagramme déploiement (infrastructure cloud)
-- ✅ Indicateurs BI (3 dashboards détaillés)
-- ✅ Backlog Teams (14 US, 7 sprints)
-- ✅ Excel Git-Backlog (3 feuilles complètes)
-- ✅ Récapitulatif final (ce document)
-
----
-
-**🎓 Tous les livrables sont prêts pour votre soutenance !**
-
-**Bonne chance ! 🚀**
-
----
-
-**Dernière mise à jour** : 20/11/2025 - Version Finale  
-**Projet** : FreelanceFlow - Architecture Big Data  
-**Étudiant** : [Votre Nom]  
-**École** : [École d'Ingénieur]
